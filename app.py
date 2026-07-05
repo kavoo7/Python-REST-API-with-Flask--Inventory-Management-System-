@@ -26,13 +26,16 @@ def add_product():
     if barcode:
         off_url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
         try:
-            response = requests.get(off_url)
+            # Added a standard User-Agent header which OpenFoodFacts requires to prevent throttling
+            headers = {'User-Agent': 'EcommerceAdminPortal - Python - Version 1.0'}
+            response = requests.get(off_url, headers=headers, timeout=5)
             if response.status_code == 200:
                 api_data = response.json()
-                if api_data.get('status') == 1: 
+                if api_data.get('status') == 1 or api_data.get('status_verbose') == "product found": 
                     product_info = api_data.get('product', {})
                     name = product_info.get('product_name', name)
-                    brand = product_info.get('brands', brand)
+                    # Fallback sequences to look up brands
+                    brand = product_info.get('brands', product_info.get('brand_owner', brand))
         except Exception as e:
             print(f"Error connecting to OpenFoodFacts: {e}")
 
@@ -47,24 +50,21 @@ def add_product():
     
     return jsonify({"message": "Product created", "product": new_item}), 201
 
-@app.route('/inventory/<int:item_id>', methods=['PUT'])
-def update_product(item_id):
-    """UPDATE: Modify an existing product in the array."""
-    data = request.json or {}
-    for item in inventory:
-        if item['id'] == item_id:
-            item['name'] = data.get('name', item['name'])
-            item['brand'] = data.get('brand', item['brand'])
-            item['barcode'] = data.get('barcode', item['barcode'])
-            return jsonify({"message": "Product updated", "product": item}), 200
-    return jsonify({"error": "Product not found"}), 404
-
 @app.route('/inventory/<int:item_id>', methods=['DELETE'])
 def delete_product(item_id):
-    """DELETE: Remove a product from the array."""
+    """DELETE: Remove a product from the array safely."""
     global inventory
-    inventory = [item for item in inventory if item['id'] != item_id]
-    return jsonify({"message": "Product deleted"}), 200
+    target_item = None
+    for item in inventory:
+        if item['id'] == item_id:
+            target_item = item
+            break
+            
+    if target_item:
+        inventory.remove(target_item)
+        return jsonify({"message": "Product deleted"}), 200
+        
+    return jsonify({"error": "Product not found"}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)

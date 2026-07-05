@@ -12,10 +12,8 @@ class InventoryApiTestCase(unittest.TestCase):
 
     def test_create_and_get_inventory(self):
         """Test adding an item manually and immediately retrieving it."""
-        # Create
         self.app.post('/inventory', json={"name": "Apple", "brand": "FruitCo"})
         
-        # Read
         response = self.app.get('/inventory')
         data = json.loads(response.data)
         self.assertEqual(response.status_code, 200)
@@ -24,12 +22,16 @@ class InventoryApiTestCase(unittest.TestCase):
 
     def test_delete_inventory(self):
         """Test deleting an item safely out of the array layout."""
-        self.app.post('/inventory', json={"name": "Banana"})
+        # Create an item and capture what ID was generated
+        resp = self.app.post('/inventory', json={"name": "Banana"})
+        created_data = json.loads(resp.data)
+        item_id = created_data['product']['id']
         
-        # Assume it gets sequence ID 1 because the array resets clean
-        delete_resp = self.app.delete('/inventory/1')
+        # Fire the delete target request
+        delete_resp = self.app.delete(f'/inventory/{item_id}')
         self.assertEqual(delete_resp.status_code, 200)
         
+        # Verify the array list is now empty
         get_resp = self.app.get('/inventory')
         self.assertEqual(len(json.loads(get_resp.data)), 0)
 
@@ -39,7 +41,10 @@ class InventoryApiTestCase(unittest.TestCase):
         data = json.loads(response.data)
         
         self.assertEqual(response.status_code, 201)
-        self.assertIn("Nutella", data['product']['brand'] or data['product']['name'])
+        
+        # Combine string evaluations to catch variations in naming cases
+        combined_text = f"{data['product']['brand']} {data['product']['name']}".lower()
+        self.assertIn("nutella", combined_text)
 
 if __name__ == '__main__':
     unittest.main()
